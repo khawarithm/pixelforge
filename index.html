@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>Pixelforge — Mine your fortune. Forge your legend.</title>
+<meta name="theme-color" content="#0d0c0f" />
+<meta name="description" content="2D pixel-art top-down multiplayer mining & forging RPG." />
+<link rel="manifest" href="./manifest.webmanifest" />
+<link rel="icon" href="./icons/icon-192.png" type="image/png" sizes="192x192" />
+<link rel="icon" href="./icons/icon-512.png" type="image/png" sizes="512x512" />
+<link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="./icons/icon-192.png" />
+<link rel="stylesheet" href="./style.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <!-- Main menu: the very first screen on boot. Start / How to Play / Credits. -->
+  <div id="main-menu" class="hidden">
+    <div id="main-menu-panel">
+      <h1 id="main-menu-title" class="pixel-font" data-i18n="menu_title">Pixelforge</h1>
+      <p id="main-menu-subtitle" data-i18n="menu_subtitle">Mine your fortune. Forge your legend.</p>
+      <div id="main-menu-buttons">
+        <button id="menu-start-btn" class="forge-start-btn" data-i18n="menu_start">Start Game</button>
+        <button id="menu-howto-btn" class="forge-type-btn" data-i18n="menu_howto">How to Play</button>
+        <button id="menu-credits-btn" class="forge-type-btn" data-i18n="menu_credits">Credits</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- How to Play modal (opened from the main menu) -->
+  <div id="howto-modal" class="hidden">
+    <div id="howto-backdrop" class="modal-backdrop"></div>
+    <div id="howto-panel" class="modal-panel">
+      <button id="howto-close" class="modal-close" aria-label="Close"><img class="icon-inline" src="./assets/icons/ui/close.svg" alt="Close"></button>
+      <h2 class="forge-title" data-i18n="howto_title">How to Play</h2>
+      <ul class="howto-list">
+        <li class="howto-item"><img class="howto-item-icon" src="./assets/icons/ui/arrow_right.svg" alt=""><span data-i18n="howto_step_move"></span></li>
+        <li class="howto-item"><img class="howto-item-icon" src="./assets/icons/ui/sword.svg" alt=""><span data-i18n="howto_step_mine"></span></li>
+        <li class="howto-item"><img class="howto-item-icon" src="./assets/icons/ui/shield.svg" alt=""><span data-i18n="howto_step_forge"></span></li>
+        <li class="howto-item"><img class="howto-item-icon" src="./assets/icons/ui/sparkles.svg" alt=""><span data-i18n="howto_step_enchant"></span></li>
+        <li class="howto-item"><img class="howto-item-icon" src="./assets/icons/ui/backpack.svg" alt=""><span data-i18n="howto_step_inventory"></span></li>
+        <li class="howto-item"><img class="howto-item-icon" src="./assets/icons/ui/scroll.svg" alt=""><span data-i18n="howto_step_skills"></span></li>
+        <li class="howto-item"><img class="howto-item-icon" src="./assets/icons/ui/boss_marker.svg" alt=""><span data-i18n="howto_step_dungeon"></span></li>
+        <li class="howto-item"><img class="howto-item-icon" src="./assets/icons/ui/trophy.svg" alt=""><span data-i18n="howto_step_progress"></span></li>
+        <li class="howto-item"><img class="howto-item-icon" src="./assets/icons/ui/gear.svg" alt=""><span data-i18n="howto_step_settings"></span></li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Credits modal (opened from the main menu) -->
+  <div id="credits-modal" class="hidden">
+    <div id="credits-backdrop" class="modal-backdrop"></div>
+    <div id="credits-panel" class="modal-panel">
+      <button id="credits-close" class="modal-close" aria-label="Close"><img class="icon-inline" src="./assets/icons/ui/close.svg" alt="Close"></button>
+      <h2 class="forge-title" data-i18n="credits_title">Credits</h2>
+      <p id="credits-body" class="forge-sub howto-body" data-i18n="credits_body"></p>
+    </div>
+  </div>
+
+  <!-- Username modal: shown once, first launch (or if no cached name) -->
+  <div id="username-modal" class="hidden">
+    <div id="username-backdrop"></div>
+    <div id="username-panel">
+      <h2 class="forge-title" data-i18n="username_title">Welcome to Pixelforge</h2>
+      <p class="forge-sub" data-i18n="username_sub">Pick a name — other players in the village will see it instead of "Player".</p>
+      <input id="username-input" type="text" maxlength="16" placeholder="Your name" data-i18n-placeholder="username_placeholder" autocomplete="off" />
+      <p id="username-error" class="forge-sub username-error hidden"></p>
+      <button id="username-confirm" class="forge-start-btn" data-i18n="username_confirm">Enter the Village</button>
+    </div>
+  </div>
+
+  <canvas id="game-canvas"></canvas>
+
+  <!-- Top HUD bar: DOM only, canvas never used for text-heavy UI -->
+  <header id="hud-top">
+    <div class="hud-pill" id="area-pill">
+      <span class="dot"></span>
+      <span id="area-name">Village</span>
+    </div>
+    <div id="hp-pill" class="hud-pill hud-pill--hp">
+      <img class="icon-inline icon-inline--lg" src="./assets/icons/ui/heart.svg" alt="HP">
+      <div id="hp-bar-track"><div id="hp-bar-fill"></div></div>
+      <span id="hp-value">100/100</span>
+    </div>
+    <div class="hud-pill hud-pill--gold">
+      <img class="icon-inline icon-inline--lg" src="./assets/icons/ui/coin.svg" alt="Gold">
+      <span id="gold-value">0g</span>
+    </div>
+    <button id="inv-toggle" class="hud-pill hud-pill--btn" aria-label="Toggle inventory">
+      <img class="icon-inline icon-inline--lg" src="./assets/icons/ui/backpack.svg" alt="Inventory">
+    </button>
+    <button id="progress-toggle" class="hud-pill hud-pill--btn" aria-label="Achievements and Quests">
+      <img class="icon-inline icon-inline--lg" src="./assets/icons/ui/trophy.svg" alt="Progress">
+    </button>
+    <button id="settings-toggle" class="hud-pill hud-pill--btn" aria-label="Settings">
+      <img class="icon-inline icon-inline--lg" src="./assets/icons/ui/gear.svg" alt="Settings">
+    </button>
+  </header>
+  <div id="pickaxe-badge" class="hud-pill hud-pill--small"><span id="pickaxe-name">Stone Pickaxe</span></div>
+  <div id="level-badge" class="hud-pill hud-pill--small hud-pill--level">
+    <span id="level-value">Lv.1</span>
+    <div id="xp-bar-track"><div id="xp-bar-fill"></div></div>
+    <span id="xp-value">0/50</span>
+  </div>
+
+  <!-- Interaction prompt -->
+  <div id="interact-prompt" class="hidden"></div>
+  <div id="toast" class="hidden"></div>
+
+  <!-- Mining progress -->
+  <div id="mine-progress-wrap" class="hidden">
+    <div id="mine-progress-bar"></div>
+  </div>
+
+  <!-- Inventory panel -->
+  <div id="inv-backdrop" class="hidden"></div>
+  <aside id="inv-panel" class="hidden">
+    <div class="inv-panel-header">
+      <h2 data-i18n="inv_title">Inventory</h2>
+      <button id="inv-close" aria-label="Close inventory"><img class="icon-inline" src="./assets/icons/ui/close.svg" alt="Close"></button>
+    </div>
+    <h3 class="inv-subheading" data-i18n="inv_ore">Ore</h3>
+    <ul id="inv-list"></ul>
+    <h3 class="inv-subheading" data-i18n="inv_equipment">Equipment</h3>
+    <ul id="equip-list"></ul>
+    <h3 class="inv-subheading" data-i18n="inv_passives">Passives (max 2 equipped)</h3>
+    <ul id="passive-list"></ul>
+    <h3 class="inv-subheading" data-i18n="inv_skills">Skills (max 2 equipped)</h3>
+    <ul id="skill-list"></ul>
+    <h3 class="inv-subheading" data-i18n="inv_oreindex">Ore Index</h3>
+    <ul id="ore-index-list"></ul>
+    <p class="hint" data-i18n="inv_hint">Sell ore and gear at the NPC Shop for gold.</p>
+  </aside>
+
+  <!-- Forge modal (Blacksmith) -->
+  <div id="forge-modal" class="hidden">
+    <div id="forge-backdrop"></div>
+    <div id="forge-panel">
+      <button id="forge-close" aria-label="Close forge"><img class="icon-inline" src="./assets/icons/ui/close.svg" alt="Close"></button>
+      <div id="forge-body"></div>
+    </div>
+  </div>
+
+  <!-- Dungeon result modal (victory / defeat) -->
+  <div id="dungeon-modal" class="hidden">
+    <div id="dungeon-backdrop"></div>
+    <div id="dungeon-panel">
+      <div id="dungeon-body"></div>
+    </div>
+  </div>
+
+  <!-- NPC Shop modal -->
+  <div id="shop-modal" class="hidden">
+    <div id="shop-backdrop" class="modal-backdrop"></div>
+    <div id="shop-panel" class="modal-panel">
+      <button id="shop-close" class="modal-close" aria-label="Close shop"><img class="icon-inline" src="./assets/icons/ui/close.svg" alt="Close"></button>
+      <div id="shop-body"></div>
+    </div>
+  </div>
+
+  <!-- Storage / Auto Drill modal -->
+  <div id="drill-modal" class="hidden">
+    <div id="drill-backdrop" class="modal-backdrop"></div>
+    <div id="drill-panel" class="modal-panel">
+      <button id="drill-close" class="modal-close" aria-label="Close storage"><img class="icon-inline" src="./assets/icons/ui/close.svg" alt="Close"></button>
+      <div id="drill-body"></div>
+    </div>
+  </div>
+
+  <!-- Auction House modal -->
+  <div id="auction-modal" class="hidden">
+    <div id="auction-backdrop" class="modal-backdrop"></div>
+    <div id="auction-panel" class="modal-panel">
+      <button id="auction-close" class="modal-close" aria-label="Close auction house"><img class="icon-inline" src="./assets/icons/ui/close.svg" alt="Close"></button>
+      <div id="auction-body"></div>
+    </div>
+  </div>
+
+  <!-- Enchanter NPC modal -->
+  <div id="enchant-modal" class="hidden">
+    <div id="enchant-backdrop" class="modal-backdrop"></div>
+    <div id="enchant-panel" class="modal-panel">
+      <button id="enchant-close" class="modal-close" aria-label="Close enchanter"><img class="icon-inline" src="./assets/icons/ui/close.svg" alt="Close"></button>
+      <div id="enchant-body"></div>
+    </div>
+  </div>
+
+  <!-- Achievements / Quests modal -->
+  <div id="progress-modal" class="hidden">
+    <div id="progress-backdrop" class="modal-backdrop"></div>
+    <div id="progress-panel" class="modal-panel">
+      <button id="progress-close" class="modal-close" aria-label="Close achievements and quests"><img class="icon-inline" src="./assets/icons/ui/close.svg" alt="Close"></button>
+      <div id="progress-body"></div>
+    </div>
+  </div>
+
+  <!-- Offline mining summary (Auto Drill) -->
+  <div id="offline-modal" class="hidden">
+    <div id="offline-backdrop" class="modal-backdrop"></div>
+    <div id="offline-panel" class="modal-panel">
+      <div id="offline-body"></div>
+    </div>
+  </div>
+
+  <!-- Settings modal -->
+  <div id="settings-modal" class="hidden">
+    <div id="settings-backdrop" class="modal-backdrop"></div>
+    <div id="settings-panel" class="modal-panel">
+      <button id="settings-close" class="modal-close" aria-label="Close settings"><img class="icon-inline" src="./assets/icons/ui/close.svg" alt="Close"></button>
+      <h2 class="forge-title" data-i18n="settings_title">Settings</h2>
+
+      <h3 class="inv-subheading" data-i18n="settings_audio">Audio</h3>
+      <div class="settings-volume-row">
+        <label data-i18n="settings_master_volume">Master Volume</label>
+        <input id="volume-master" type="range" min="0" max="100" value="80" />
+      </div>
+      <div class="settings-volume-row">
+        <label data-i18n="settings_music_volume">Music Volume</label>
+        <input id="volume-music" type="range" min="0" max="100" value="60" />
+      </div>
+      <div class="settings-volume-row">
+        <label data-i18n="settings_sfx_volume">Sound Effects</label>
+        <input id="volume-sfx" type="range" min="0" max="100" value="90" />
+      </div>
+
+      <h3 class="inv-subheading" data-i18n="settings_language">Language</h3>
+      <div id="language-row" class="forge-type-row">
+        <button class="forge-type-btn" data-lang="en" data-i18n="lang_en">English</button>
+        <button class="forge-type-btn" data-lang="id" data-i18n="lang_id">Indonesian</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Touch controls -->
+  <div id="controls">
+    <div id="joystick-base">
+      <div id="joystick-knob"></div>
+    </div>
+    <div id="action-cluster">
+      <div id="skill-buttons">
+        <button id="skill-btn-1" class="skill-btn hidden" aria-label="Skill 1"></button>
+        <button id="skill-btn-2" class="skill-btn hidden" aria-label="Skill 2"></button>
+      </div>
+      <button id="action-btn">MINE</button>
+    </div>
+  </div>
+
+  <!-- Debug Mode console — hidden unless username is exactly "*/debug;;" -->
+  <button id="debug-tab" class="debug-tab hidden">DEBUG</button>
+  <div id="debug-modal" class="hidden">
+    <div id="debug-backdrop" class="modal-backdrop"></div>
+    <div id="debug-panel" class="modal-panel debug-panel">
+      <div class="debug-panel-header">
+        <span data-i18n="debug_console_title">Debug Console</span>
+        <button id="debug-close" class="modal-close" aria-label="Close debug console"><img class="icon-inline" src="./assets/icons/ui/close.svg" alt="Close"></button>
+      </div>
+      <div id="debug-log" class="debug-log"></div>
+      <div class="debug-input-row">
+        <input id="debug-input" type="text" autocomplete="off" placeholder="add money(500)" data-i18n-placeholder="debug_input_placeholder" />
+        <button id="debug-run" class="forge-type-btn" data-i18n="debug_run">Run</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,1175 @@
+/* style.css — Pixelforge
+   Palette: forge-black #0d0c0f, ember amber #d4a72c, hot copper #c87a44,
+   quench blue #3d7fd6, stone #2a2822. Chosen to echo the mine/forge duality
+   in the brief rather than a generic dark-UI default. */
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+/* Native tap-highlight is disabled above for aesthetics, so every button
+   needs its own pressed-state or taps feel unresponsive/laggy even though
+   they register fine. touch-action:manipulation drops any leftover
+   double-tap-to-zoom delay; the scale+brightness gives instant feedback
+   the instant a finger touches down, before the actual result renders.
+   More specific selectors (e.g. #action-btn, .forge-action-btn) already
+   set their own touch-action:none for drag/hold gestures and win here. */
+button {
+  touch-action: manipulation;
+  transition: transform 0.08s ease-out, filter 0.08s ease-out;
+}
+button:active:not(:disabled) {
+  transform: scale(0.94);
+  filter: brightness(1.18);
+}
+button:disabled { transition: none; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0d0c0f;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color: #f2e9da;
+  touch-action: none;
+  user-select: none;
+}
+
+/* Pixel display font for titles/headings only — body text and buttons stay
+   in a readable monospace, since Press Start 2P is too wide/blocky for
+   longer or dynamic button labels at small sizes. Falls back silently if
+   offline (service worker doesn't cache cross-origin fonts by design). */
+.pixel-font, .forge-title, .dungeon-result-title, #area-name {
+  font-family: "Press Start 2P", ui-monospace, monospace;
+}
+
+#game-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  image-rendering: pixelated;
+  background: #101014;
+}
+
+.hidden { display: none !important; }
+
+/* Forced-orientation fallback for browsers with no Screen Orientation Lock
+   API (iOS Safari never implemented one). Rotates the whole page 90deg and
+   swaps the effective width/height so the game presents in the requested
+   orientation regardless of the device's actual physical rotation. Only
+   applied when the current physical orientation doesn't already match the
+   saved preference (see utils/orientation.js). */
+html.force-rotate body {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vh;
+  height: 100vw;
+  transform-origin: top left;
+  transform: rotate(90deg) translateY(-100%);
+}
+
+/* Consistent tap feedback across every button in the game — small scale
+   + brightness dip on press, cheap enough for low-end GPUs (no blur/filter
+   stacking, just transform + brightness). */
+button {
+  cursor: pointer;
+  transition: transform 0.08s ease, filter 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+}
+button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.9); }
+button:disabled { cursor: default; opacity: 0.45; }
+
+@keyframes modalPopIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+@keyframes backdropFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes toastSlideIn {
+  from { opacity: 0; transform: translate(-50%, -8px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+@keyframes rarityGlowPulse {
+  0%, 100% { box-shadow: 0 0 4px 0 var(--glow-color, rgba(212,167,44,0.4)); }
+  50%      { box-shadow: 0 0 14px 2px var(--glow-color, rgba(212,167,44,0.7)); }
+}
+@keyframes popScale {
+  0%   { transform: scale(0.85); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ---------- Top HUD ---------- */
+#hud-top {
+  position: fixed;
+  top: max(10px, env(safe-area-inset-top));
+  left: 10px;
+  right: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 6px;
+  gap: 8px;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.hud-pill {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: linear-gradient(180deg, rgba(32,28,24,0.85), rgba(16,14,12,0.85));
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border: 1px solid rgba(212, 167, 44, 0.35);
+  border-radius: 999px;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.3);
+}
+
+.hud-pill--gold { border-color: rgba(212, 167, 44, 0.7); color: #f4d97a; margin-left: auto; }
+.hud-pill--btn { background: rgba(61, 127, 214, 0.18); border-color: rgba(61, 127, 214, 0.5); font-size: 15px; padding: 6px 10px; }
+.hud-pill--small { font-size: 10px; opacity: 0.85; padding: 4px 10px; }
+
+.hud-pill--hp { border-color: rgba(212, 58, 58, 0.5); }
+#hp-bar-track {
+  width: 44px; height: 8px;
+  background: rgba(0,0,0,0.5);
+  border-radius: 4px;
+  overflow: hidden;
+}
+#hp-bar-fill {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #7fae4a, #a8d45a);
+  transition: width 0.15s linear;
+}
+#hp-bar-fill.low { background: linear-gradient(90deg, #b0303a, #e05050); animation: hpLowPulse 1s ease-in-out infinite; }
+@keyframes hpLowPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+#hp-value { font-size: 10px; opacity: 0.85; min-width: 38px; }
+
+@media (min-width: 420px) {
+  #hp-bar-track { width: 56px; }
+}
+
+#area-name { font-size: 9px; letter-spacing: 0; }
+
+#area-pill .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #4caf6a;
+  box-shadow: 0 0 6px #4caf6a;
+  display: inline-block;
+}
+
+#pickaxe-badge {
+  position: fixed;
+  top: calc(max(10px, env(safe-area-inset-top)) + 40px);
+  left: 10px;
+  z-index: 20;
+}
+#level-badge {
+  position: fixed;
+  top: calc(max(10px, env(safe-area-inset-top)) + 40px);
+  left: 148px;
+  z-index: 20;
+}
+.hud-pill--level { color: #a8d45a; border-color: rgba(168, 212, 90, 0.4); }
+#xp-bar-track {
+  width: 40px; height: 6px;
+  background: rgba(0,0,0,0.5);
+  border-radius: 3px;
+  overflow: hidden;
+}
+#xp-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #6fa8d4, #a8d45a);
+  transition: width 0.15s ease-out;
+}
+#xp-value { font-size: 9px; opacity: 0.8; }
+@media (min-width: 420px) {
+  #xp-bar-track { width: 56px; }
+}
+
+/* ---------- Interaction prompt ---------- */
+#interact-prompt {
+  position: fixed;
+  bottom: 150px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(20, 18, 16, 0.88);
+  border: 1px solid rgba(212, 167, 44, 0.35);
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  z-index: 20;
+  text-align: center;
+  pointer-events: none;
+  animation: toastSlideIn 0.15s ease-out;
+}
+
+#toast {
+  position: fixed;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(176, 48, 58, 0.92);
+  border: 1px solid rgba(255,255,255,0.2);
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  z-index: 35;
+  text-align: center;
+  pointer-events: none;
+  animation: toastSlideIn 0.2s ease-out;
+}
+
+/* ---------- Mining progress ---------- */
+#mine-progress-wrap {
+  position: fixed;
+  bottom: 120px;
+  right: max(24px, env(safe-area-inset-right));
+  width: 90px;
+  height: 8px;
+  background: rgba(0,0,0,0.5);
+  border: 1px solid rgba(212, 167, 44, 0.4);
+  border-radius: 4px;
+  overflow: hidden;
+  z-index: 20;
+}
+#mine-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #c87a44, #d4a72c);
+}
+
+/* ---------- Inventory panel ---------- */
+#inv-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 29;
+}
+
+#inv-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(280px, 78vw);
+  background: rgba(13, 12, 15, 0.96);
+  border-left: 1px solid rgba(212, 167, 44, 0.3);
+  padding: 20px 16px;
+  padding-top: max(20px, env(safe-area-inset-top));
+  z-index: 30;
+  overflow-y: auto;
+}
+.inv-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(212, 167, 44, 0.25);
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+}
+#inv-panel h2 {
+  margin: 0;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  color: #f4d97a;
+}
+#inv-close {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #f2e9da;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.inv-subheading {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.6;
+  margin: 16px 0 8px;
+}
+.inv-subheading:first-of-type { margin-top: 0; }
+
+#inv-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+#inv-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  padding: 6px 8px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 6px;
+}
+#inv-list li.empty { opacity: 0.6; font-style: italic; }
+#inv-list .swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+#inv-list .ore-icon { width: 20px; height: 20px; flex: none; }
+#inv-list .name { flex: 1; }
+#inv-list .count { opacity: 0.7; }
+#inv-list .value { color: #f4d97a; font-size: 11px; }
+#inv-panel .hint { margin-top: 16px; font-size: 10px; opacity: 0.5; line-height: 1.5; }
+
+/* ---------- Ore Index (discovered/undiscovered catalog) ---------- */
+#ore-index-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ore-index-summary {
+  font-size: 10px;
+  opacity: 0.6;
+  text-align: right;
+  padding: 0 2px 2px;
+}
+.ore-index-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.03);
+}
+.ore-index-entry .swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+.ore-index-entry .swatch--locked { background: repeating-linear-gradient(45deg, #333, #333 3px, #222 3px, #222 6px); }
+.ore-index-entry .ore-icon { width: 18px; height: 18px; flex: none; }
+.ore-index-entry .name { flex: 1; }
+.ore-index-entry .value { color: #f4d97a; font-size: 10px; }
+.ore-index-entry.locked { opacity: 0.45; font-style: italic; }
+
+/* ---------- Equipment list + rarity colors ---------- */
+#equip-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.equip-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border-left: 3px solid #888;
+  background: rgba(255,255,255,0.04);
+}
+.equip-item.empty { opacity: 0.6; font-style: italic; border-left: none; }
+.equip-item .name { font-weight: 700; font-size: 12px; }
+.equip-item .count { opacity: 0.75; }
+.equip-btn {
+  align-self: flex-start;
+  margin-top: 2px;
+  background: rgba(61, 127, 214, 0.25);
+  border: 1px solid rgba(61, 127, 214, 0.6);
+  color: #dce8fb;
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 10px;
+}
+
+.rarity-common   { border-left-color: #9aa0a6; }
+.rarity-uncommon { border-left-color: #2f6f3e; }
+.rarity-rare     { border-left-color: #3d7fd6; }
+.rarity-epic     { border-left-color: #8b3fd4; }
+.rarity-legendary{ border-left-color: #d4a72c; --glow-color: rgba(212,167,44,0.55); animation: rarityGlowPulse 2.6s ease-in-out infinite; }
+.rarity-mythic   { border-left-color: #b0303a; --glow-color: rgba(176,48,58,0.55); animation: rarityGlowPulse 2.6s ease-in-out infinite; }
+.rarity-tyrant   { border-left-color: #141414; --glow-color: rgba(255,255,255,0.25); animation: rarityGlowPulse 2.6s ease-in-out infinite; }
+.rarity-magical  {
+  border-left-color: #d4a72c;
+  --glow-color: rgba(212,58,90,0.6);
+  animation: rarityGlowPulse 2s ease-in-out infinite;
+  background-image: linear-gradient(135deg, rgba(176,48,58,0.12), rgba(20,20,20,0.12), rgba(212,167,44,0.12));
+}
+
+/* ---------- Icons (no emoji anywhere — every glyph is a real image) ---------- */
+.icon-inline {
+  width: 13px; height: 13px;
+  vertical-align: -2px;
+  display: inline-block;
+}
+.icon-inline--sm { width: 10px; height: 10px; vertical-align: -1px; }
+.icon-inline--lg { width: 20px; height: 20px; vertical-align: -4px; }
+.icon-inline--xl { width: 36px; height: 36px; vertical-align: -8px; }
+
+/* Ore sprite icons in the Inventory / Ore Index lists (falls back to
+   .swatch via Hud#_oreIconHtml if a sprite is missing/fails to load). */
+.ore-icon {
+  border-radius: 4px;
+  object-fit: cover;
+  image-rendering: pixelated;
+  background: rgba(255,255,255,0.06);
+}
+
+/* Tintable icon: renders a shared shape masked by an SVG, colored via
+   background-color, so one file (e.g. the quality gem) can show up in any
+   Quality tier color without needing a separate image per tier. */
+.icon-mask {
+  display: inline-block;
+  width: 12px; height: 12px;
+  vertical-align: -2px;
+  background-color: currentColor;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+.icon-mask--gem {
+  -webkit-mask-image: url('./assets/icons/ui/quality_gem.svg');
+  mask-image: url('./assets/icons/ui/quality_gem.svg');
+}
+
+/* ---------- Quality (Tomes/Scrolls) tiers ---------- */
+.quality-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 1px 6px 1px 5px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  width: fit-content;
+}
+.quality-badge--common    { color: #9aa0a6; }
+.quality-badge--fine      { color: #4fbf68; }
+.quality-badge--superior  { color: #5aa2ec; }
+.quality-badge--exquisite { color: #b06bf0; }
+.quality-badge--flawless  { color: #f0c94a; }
+.quality-badge--perfect   { color: #e0525f; }
+
+.quality-common    { border-left-color: #9aa0a6; }
+.quality-fine      { border-left-color: #2f6f3e; }
+.quality-superior  { border-left-color: #3d7fd6; }
+.quality-exquisite { border-left-color: #8b3fd4; --glow-color: rgba(139,63,212,0.45); animation: rarityGlowPulse 2.6s ease-in-out infinite; }
+.quality-flawless  { border-left-color: #d4a72c; --glow-color: rgba(212,167,44,0.55); animation: rarityGlowPulse 2.6s ease-in-out infinite; }
+.quality-perfect   { border-left-color: #b0303a; --glow-color: rgba(176,48,58,0.6); animation: rarityGlowPulse 2.6s ease-in-out infinite; }
+
+
+/* ---------- Forge modal ---------- */
+#forge-modal { position: fixed; inset: 0; z-index: 40; }
+#forge-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.6); }
+#forge-panel {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(360px, 92vw);
+  max-height: min(640px, 88vh);
+  overflow-y: auto;
+  background: linear-gradient(180deg, #1c1712, #14100d);
+  border: 1px solid rgba(212, 167, 44, 0.4);
+  border-radius: 12px;
+  padding: 20px 18px;
+  padding-top: max(20px, env(safe-area-inset-top));
+}
+
+/* Pop-in animation, shared by every modal panel/backdrop in the game.
+   Works via display:none -> visible re-triggering the animation (no JS
+   needed) rather than a transition, since transitions can't run across a
+   display:none boundary. */
+#forge-panel, #dungeon-panel, #username-panel, .modal-panel {
+  animation: modalPopIn 0.18s ease-out;
+}
+#forge-backdrop, #dungeon-backdrop, #username-backdrop, .modal-backdrop {
+  animation: backdropFadeIn 0.15s ease-out;
+}
+#forge-close {
+  position: absolute;
+  top: 12px; right: 12px;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #f2e9da;
+  font-size: 13px;
+}
+.forge-title { margin: 0 0 8px; font-size: 13px; line-height: 1.6; color: #f4d97a; letter-spacing: 0.02em; }
+.forge-sub { margin: 0 0 16px; font-size: 11px; opacity: 0.7; line-height: 1.5; }
+.forge-empty { font-size: 12px; opacity: 0.7; text-align: center; padding: 20px 0; }
+
+.forge-ore-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+.forge-ore-card {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #f2e9da;
+  font-size: 11px;
+}
+.forge-ore-card.selected { border-color: #d4a72c; background: rgba(212,167,44,0.14); }
+.forge-ore-card .swatch { width: 10px; height: 10px; border-radius: 2px; }
+.forge-ore-card .name { flex: 1; text-align: left; }
+.forge-ore-card .count { opacity: 0.7; }
+
+/* Multi-ore stepper (Blacksmith ore selection) */
+.forge-ore-grid--stepper { grid-template-columns: 1fr; }
+.forge-ore-card--stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.forge-ore-card--stepper .name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.forge-ore-card--stepper .count { font-size: 10px; opacity: 0.6; }
+.ore-stepper { display: flex; align-items: center; gap: 8px; flex: none; }
+.ore-step-btn {
+  width: 26px; height: 26px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #f2e9da;
+  font-size: 15px;
+  line-height: 1;
+}
+.ore-step-value { min-width: 18px; text-align: center; font-size: 13px; font-weight: 700; }
+
+.forge-type-row { display: flex; gap: 8px; margin-bottom: 16px; }
+.forge-type-btn {
+  flex: 1;
+  padding: 10px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 8px;
+  color: #f2e9da;
+  font-size: 13px;
+}
+.forge-type-btn.selected { border-color: #3d7fd6; background: rgba(61,127,214,0.18); }
+
+.forge-start-btn, .forge-action-btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  border: none;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  font-size: 13px;
+  margin-top: 4px;
+}
+.forge-start-btn {
+  background: linear-gradient(135deg, #d4894f, #a8532a);
+  color: #fff2e0;
+}
+.forge-start-btn:disabled { opacity: 0.4; }
+.forge-action-btn {
+  background: radial-gradient(circle at 35% 30%, #d4894f, #a8532a);
+  color: #fff2e0;
+  margin-top: 14px;
+  touch-action: none;
+}
+
+.forge-gauge {
+  position: relative;
+  height: 22px;
+  background: rgba(0,0,0,0.5);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+.forge-gauge-fill {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  width: 0%;
+  background: linear-gradient(90deg, #c8672f, #d4894f);
+}
+.forge-gauge-fill.good { background: linear-gradient(90deg, #d4a72c, #f4d97a); }
+.forge-gauge-fill--temper { background: linear-gradient(90deg, #3d7fd6, #7fb2ec); width: 100%; }
+.forge-gauge-zone {
+  position: absolute; top: 0; bottom: 0;
+  background: rgba(212, 167, 44, 0.28);
+  border-left: 1px solid rgba(212,167,44,0.7);
+  border-right: 1px solid rgba(212,167,44,0.7);
+}
+.forge-gauge-zone--temper {
+  background: rgba(61, 127, 214, 0.28);
+  border-color: rgba(61,127,214,0.8);
+}
+.forge-gauge--hammer { height: 26px; }
+.forge-marker {
+  position: absolute;
+  top: -3px;
+  width: 4px; height: 32px;
+  background: #fff;
+  transform: translateX(-50%);
+}
+.forge-rep { text-align: center; font-size: 11px; opacity: 0.7; margin-top: 8px; }
+
+.forge-shape-prompt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 6px;
+  color: #f4d97a;
+}
+.forge-dir-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 6px;
+  margin-top: 12px;
+}
+.forge-dir-btn {
+  padding: 14px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 8px;
+  color: #f2e9da;
+  touch-action: none;
+}
+.forge-dir-up { grid-column: 2; grid-row: 1; }
+.forge-dir-left { grid-column: 1; grid-row: 2; }
+.forge-dir-down { grid-column: 2; grid-row: 2; }
+.forge-dir-right { grid-column: 3; grid-row: 2; }
+
+.forge-result-card {
+  border: 2px solid var(--rarity-color, #888);
+  border-radius: 10px;
+  padding: 16px;
+  text-align: center;
+  margin-bottom: 12px;
+  background: rgba(255,255,255,0.03);
+  animation: popScale 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.forge-result-rarity { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; opacity: 0.85; }
+.forge-result-name { font-size: 15px; font-weight: 700; margin: 4px 0; color: #f4d97a; }
+.forge-result-quality { font-size: 11px; opacity: 0.75; margin-bottom: 10px; }
+.forge-result-composition {
+  font-size: 10px;
+  opacity: 0.65;
+  font-family: ui-monospace, monospace;
+  margin-bottom: 10px;
+  word-break: break-word;
+}
+.forge-result-stats { list-style: none; margin: 0 0 10px; padding: 0; font-size: 12px; display: flex; flex-direction: column; gap: 3px; }
+.forge-result-effect { font-size: 11px; background: rgba(212,58,90,0.15); border-radius: 6px; padding: 8px; margin-bottom: 10px; }
+.forge-result-effect span { opacity: 0.7; }
+.forge-result-value { font-size: 12px; color: #f4d97a; font-weight: 700; }
+
+/* ---------- Shared modal shell (Shop / Drill / Auction / Offline) ---------- */
+.modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.6); }
+.modal-panel {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(360px, 92vw);
+  max-height: min(640px, 88vh);
+  overflow-y: auto;
+  background: linear-gradient(180deg, #1c1712, #14100d);
+  border: 1px solid rgba(212, 167, 44, 0.4);
+  border-radius: 12px;
+  padding: 20px 18px;
+  padding-top: max(20px, env(safe-area-inset-top));
+}
+.modal-close {
+  position: absolute;
+  top: 12px; right: 12px;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #f2e9da;
+  font-size: 13px;
+}
+#shop-modal, #drill-modal, #auction-modal, #offline-modal, #progress-modal { position: fixed; inset: 0; z-index: 41; }
+/* How to Play / Credits are opened from the main menu (z-index 60), so they
+   need a higher z-index than that to actually appear above it and receive
+   taps — otherwise they render (invisibly) behind the still-visible menu. */
+#howto-modal, #credits-modal { position: fixed; inset: 0; z-index: 61; }
+
+/* ---------- Shop ---------- */
+.shop-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+.shop-tab-btn {
+  flex: 1;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.7);
+  border-radius: 8px;
+  padding: 8px 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.shop-tab-btn.active {
+  background: rgba(212, 167, 44, 0.2);
+  border-color: rgba(212, 167, 44, 0.6);
+  color: #f4d97a;
+}
+.shop-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.shop-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.04);
+  border-left: 3px solid #888;
+}
+.shop-row .swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+.shop-row .name { flex: 1; }
+.shop-row .count { opacity: 0.7; font-size: 11px; }
+.shop-row .name-col { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ore-composition {
+  font-size: 9px;
+  opacity: 0.6;
+  font-family: ui-monospace, monospace;
+  word-break: break-word;
+}
+.shop-price { color: #f4d97a; font-weight: 700; font-size: 12px; }
+.shop-sell-btn {
+  background: rgba(212, 167, 44, 0.2);
+  border: 1px solid rgba(212, 167, 44, 0.6);
+  color: #f4d97a;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 11px;
+}
+.shop-sell-btn:disabled {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.4);
+}
+
+/* ---------- Storage / Drill ---------- */
+.drill-stat-card {
+  background: rgba(255,255,255,0.04);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 8px 0 16px;
+}
+.drill-stat-name { font-size: 14px; font-weight: 700; color: #f4d97a; margin-bottom: 6px; }
+.drill-stat { font-size: 11px; opacity: 0.8; line-height: 1.7; }
+
+/* ---------- Auction House ---------- */
+.auction-list { display: flex; flex-direction: column; gap: 10px; }
+.auction-card {
+  border-left: 3px solid #888;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.04);
+  padding: 10px 12px;
+}
+.auction-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.auction-item-name { font-size: 13px; font-weight: 700; }
+.auction-badge {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(61,127,214,0.25);
+  color: #9fc3f0;
+}
+.auction-badge.winning { background: rgba(212,167,44,0.3); color: #f4d97a; }
+.auction-meta { font-size: 10px; opacity: 0.65; margin: 4px 0 8px; }
+.auction-current-bid { font-size: 15px; font-weight: 700; color: #f4d97a; }
+.auction-bid-input-row { display: flex; gap: 6px; margin-top: 8px; }
+.auction-bid-input {
+  flex: 1;
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 6px;
+  color: #f2e9da;
+  font-family: inherit;
+  font-size: 12px;
+}
+.auction-bid-input:focus { outline: none; border-color: #d4a72c; }
+#dungeon-modal { position: fixed; inset: 0; z-index: 42; }
+#dungeon-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.75); }
+#dungeon-panel {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(340px, 90vw);
+  background: linear-gradient(180deg, #1c1712, #14100d);
+  border: 1px solid rgba(212, 167, 44, 0.4);
+  border-radius: 12px;
+  padding: 24px 20px;
+  text-align: center;
+}
+.dungeon-result-title { margin: 0 0 12px; font-size: 15px; line-height: 1.7; letter-spacing: 0.01em; }
+.dungeon-result-title.win { color: #f4d97a; }
+.dungeon-result-title.lose { color: #e07070; }
+.dungeon-loot {
+  margin: 4px 0 16px;
+  font-size: 13px;
+  color: #f4d97a;
+  background: rgba(212,167,44,0.12);
+  border-radius: 8px;
+  padding: 8px;
+}
+.dungeon-new-record {
+  color: #a8d45a;
+  background: rgba(168,212,90,0.14);
+  border: 1px solid rgba(168,212,90,0.4);
+  font-weight: 700;
+}
+
+/* ---------- Username modal ---------- */
+#username-modal { position: fixed; inset: 0; z-index: 50; }
+#username-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.85); }
+#username-panel {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(320px, 90vw);
+  background: linear-gradient(180deg, #1c1712, #14100d);
+  border: 1px solid rgba(212, 167, 44, 0.4);
+  border-radius: 12px;
+  padding: 24px 20px;
+  text-align: center;
+}
+#username-input {
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 8px;
+  color: #f2e9da;
+  font-family: inherit;
+  font-size: 14px;
+  text-align: center;
+}
+#username-input:focus { outline: none; border-color: #d4a72c; }
+.username-error { color: #e07070 !important; margin-top: 8px; }
+
+
+/* ---------- Touch controls ---------- */
+#controls {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 0 24px max(24px, env(safe-area-inset-bottom));
+  z-index: 20;
+  pointer-events: none;
+}
+
+#joystick-base {
+  pointer-events: auto;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 45%, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+  border: 1px solid rgba(255,255,255,0.18);
+  box-shadow: inset 0 0 12px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.3);
+  position: relative;
+  touch-action: none;
+}
+#joystick-knob {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 44px; height: 44px;
+  margin: -22px 0 0 -22px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(244,217,122,0.75), rgba(212,167,44,0.55));
+  border: 1px solid rgba(212, 167, 44, 0.9);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+  transition: transform 0.02s linear;
+}
+
+#action-btn {
+  pointer-events: auto;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  border: 1px solid rgba(200, 122, 68, 0.7);
+  background: radial-gradient(circle at 35% 30%, #d4894f, #a8532a);
+  color: #fff2e0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+  touch-action: none;
+}
+#action-btn.active {
+  background: radial-gradient(circle at 35% 30%, #f4a25c, #c8672f);
+  transform: scale(0.94);
+}
+
+@media (min-width: 700px) {
+  #joystick-base { width: 120px; height: 120px; }
+  #action-btn { width: 96px; height: 96px; font-size: 13px; }
+}
+
+/* ---------- Main menu ---------- */
+#main-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 50% 30%, #221a12, #0d0c0f 70%);
+  padding: 24px;
+}
+#main-menu-panel {
+  width: min(340px, 92vw);
+  text-align: center;
+}
+#main-menu-title {
+  font-size: 16px;
+  line-height: 1.8;
+  color: #f4d97a;
+  margin: 0 0 10px;
+  text-shadow: 0 2px 10px rgba(212,167,44,0.4);
+}
+#main-menu-subtitle {
+  font-size: 12px;
+  opacity: 0.75;
+  margin: 0 0 28px;
+}
+#main-menu-buttons { display: flex; flex-direction: column; gap: 10px; }
+#main-menu-buttons .forge-type-btn { padding: 12px; }
+
+.howto-body {
+  white-space: pre-line;
+  text-align: left;
+  line-height: 1.8;
+}
+
+/* ---------- How to Play: icon list (nicer than the old plain paragraph) ---------- */
+.howto-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+}
+.howto-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(212, 167, 44, 0.18);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 11.5px;
+  line-height: 1.55;
+  opacity: 0.92;
+}
+.howto-item-icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  filter: drop-shadow(0 0 4px rgba(212,167,44,0.35));
+}
+
+/* ---------- Achievements / Quests ("Progress") ---------- */
+.progress-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+.progress-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.progress-card--unlocked {
+  border-color: rgba(212, 167, 44, 0.55);
+  background: rgba(212, 167, 44, 0.1);
+}
+.progress-card--ready {
+  border-color: rgba(127, 216, 200, 0.55);
+  background: rgba(127, 216, 200, 0.08);
+}
+.progress-card--locked { opacity: 0.68; }
+.progress-card-icon {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  margin-top: 2px;
+}
+.progress-card--locked .progress-card-icon { filter: grayscale(1) opacity(0.6); }
+.progress-card-body { flex: 1; min-width: 0; }
+.progress-card-name { font-size: 12px; font-weight: 700; color: #f4d97a; margin-bottom: 2px; }
+.progress-card-desc { font-size: 10.5px; opacity: 0.75; line-height: 1.5; margin-top: 2px; }
+.progress-card-reward { font-size: 10px; opacity: 0.85; margin-top: 4px; color: #7fd8c8; }
+.progress-card-status {
+  flex: none;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  opacity: 0.85;
+  white-space: nowrap;
+  align-self: center;
+}
+.progress-bar-track {
+  width: 100%;
+  height: 6px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.08);
+  overflow: hidden;
+  margin-top: 6px;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #d4a72c, #f4d97a);
+  border-radius: 4px;
+}
+
+/* ---------- Settings: audio ---------- */
+.settings-volume-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  font-size: 11px;
+}
+.settings-volume-row label { flex: none; opacity: 0.85; min-width: 92px; }
+.settings-volume-row input[type="range"] {
+  flex: 1;
+  accent-color: #d4a72c;
+}
+
+/* ---------- Skill activation buttons ---------- */
+#action-cluster {
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+#skill-buttons {
+  pointer-events: none;
+  display: flex;
+  gap: 8px;
+}
+.skill-btn {
+  pointer-events: auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(127, 216, 200, 0.6);
+  background: radial-gradient(circle at 35% 30%, #3fa89a, #1f6e63);
+  color: #eafff9;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+  touch-action: none;
+}
+.skill-btn.active {
+  background: radial-gradient(circle at 35% 30%, #f4d97a, #d4a72c);
+  border-color: rgba(244, 217, 122, 0.9);
+}
+.skill-btn:disabled { opacity: 0.55; }
+.skill-btn-icon { width: 20px; height: 20px; }
+.skill-btn-cooldown {
+  position: absolute;
+  bottom: -4px;
+  font-size: 8px;
+  background: rgba(0,0,0,0.7);
+  border-radius: 6px;
+  padding: 1px 4px;
+}
+
+/* ---------- Debug Mode console ---------- */
+/* Anchored under the currently-equipped pickaxe pill in the top-left
+   corner (#pickaxe-badge sits at top+40px) instead of the top-right, so it
+   never overlaps the HP/gold/inventory/settings pills or the level badge —
+   #pickaxe-badge/#level-badge's row ends around +64px, so +78px clears it
+   with room to spare. Still the same "position:fixed near a HUD edge"
+   convention as #hud-top's pills — proven to render correctly under the
+   force-rotate orientation fallback above, unlike an ad-hoc
+   position:absolute placement would be. */
+.debug-tab {
+  position: fixed;
+  top: calc(max(10px, env(safe-area-inset-top)) + 78px);
+  left: 10px;
+  z-index: 45;
+  background: #b0303a;
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.35);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+}
+
+/* Same proven wrapper/backdrop/panel structure as #dungeon-modal etc. —
+   a fixed full-screen wrapper (toggled via .hidden) containing a backdrop
+   and a panel centered with left/top 50% + translate(-50%,-50%), handled
+   by the shared .modal-backdrop / .modal-panel rules already used by the
+   Shop/Drill/Auction/Enchant modals. */
+#debug-modal { position: fixed; inset: 0; z-index: 46; }
+.debug-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(340px, 90vw);
+  max-height: 74vh;
+  padding: 0;
+  overflow: hidden;
+}
+.debug-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: rgba(176, 48, 58, 0.25);
+  font-size: 12px;
+  font-weight: 700;
+  color: #f2e9da;
+}
+.debug-log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 14px;
+  font-family: ui-monospace, monospace;
+  font-size: 10.5px;
+  white-space: pre-wrap;
+  min-height: 140px;
+  max-height: 46vh;
+}
+.debug-log-line { margin-bottom: 4px; opacity: 0.9; }
+.debug-log-line--cmd { color: #7fd8c8; }
+.debug-log-line--ok { color: #4fbf68; }
+.debug-log-line--err { color: #e0525f; }
+.debug-log-line--info { color: #9aa0a6; }
+.debug-input-row {
+  display: flex;
+  gap: 6px;
+  padding: 10px 14px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+.debug-input-row input {
+  flex: 1;
+  min-width: 0;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 6px;
+  color: #f2e9da;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: ui-monospace, monospace;
+}
+.debug-input-row button { flex: none; }

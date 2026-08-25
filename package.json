@@ -1,0 +1,16 @@
+{
+  "name": "pixelforge-online-rpg",
+  "version": "0.1.0",
+  "description": "Mine your fortune. Forge your legend. 2D pixel-art top-down multiplayer mining & forging RPG.",
+  "type": "module",
+  "scripts": {
+    "dev": "npx serve . -l 5173",
+    "cap:add:android": "npx cap add android",
+    "cap:sync": "npx cap sync",
+    "cap:open:android": "npx cap open android"
+  },
+  "keywords": ["game", "pwa", "rpg", "pixel-art", "canvas"],
+  "license": "UNLICENSED",
+  "devDependencies": {},
+  "dependencies": {}
+}
